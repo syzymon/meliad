@@ -15,9 +15,11 @@
 r"""Main program to train htransformer models.
 
 """
-
+import os
+import sys
 from typing import Sequence
 
+import gin
 from absl import app
 from absl import flags
 from clu import platform
@@ -53,4 +55,6 @@ def main(argv: Sequence[str]) -> None:
 
 
 if __name__ == "__main__":
+  search_path = os.path.dirname(os.path.dirname(__file__))
+  gin.add_config_file_search_path(search_path + "/transformer/configs")
   app.run(main)
