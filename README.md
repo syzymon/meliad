@@ -108,7 +108,18 @@ python transformer/ht_main.py --alsologtostderr \
 --gin_file=size/small_test.gin
 ```
 
+## Model structure (`models.py`)
+
+* DecoderOnlyLanguageModel
+  * DecoderStack
+    * `attention.py` - sliding window attention - how to disable it?? `window_length == sequence_length`
+
 ## Configuring and running the model
+
+### Important config files:
+* `base_htrans.gin`
+* `trainer_configuration.gin` - training hparams, define which model is used, optimizers, data etc.
+* `size/*.gin` - model hparams 
 
 Meliad uses [gin](https://github.com/google/gin-config) to configure the model.
 The first gin file should always be

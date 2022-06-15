@@ -13,8 +13,8 @@ decoder_stack.TransformerTaskConfig:
   batch_size = 1
 
 transformer_layer.TransformerLayer:
-  window_length = 128
-  use_long_xl_architecture = True
+  window_length = 256
+  use_long_xl_architecture = False
 
 training_loop.Trainer:
   num_steps = 1000

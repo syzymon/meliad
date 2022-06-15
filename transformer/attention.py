@@ -250,6 +250,7 @@ def sliding_attention_window_shape(kvi: KVITuple,
     assert importance.shape == (batch_size, sequence_length)
 
   assert window_length > 0
+  assert window_length == sequence_length
   if window_length >= sequence_length:
     # No sliding window.
     num_queries = sequence_length
