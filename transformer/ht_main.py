@@ -24,6 +24,8 @@ from absl import app
 from absl import flags
 from clu import platform
 import jax
+from transformers import set_seed
+
 from transformer import launcher
 import tensorflow.compat.v2 as tf
 
@@ -41,6 +43,7 @@ def main(argv: Sequence[str]) -> None:
   # it unavailable to JAX.
   tf.config.experimental.set_visible_devices([], "GPU")
 
+  set_seed(2137)
   # Set global seed for datasets.
   # tf.random.set_seed(1234)
 

@@ -215,14 +215,15 @@ class DecoderOnlyLanguageModel(nn.Module):
     accuracy = accuracy / token_count_nz  # Percent correct.
     epoch = jnp.mean(epochs)
 
-    if self.mode == "generate" and self.decoder.supports_generate():
-      # Generate example text.
-      logging.info("lang_model: text inference.")
-      gen_tokens = self.generate(inputs, task_config.sequence_length)
-
-      # Return generated text, along with vizualizations and histograms.
-      metrics = {"gen_tokens": gen_tokens, **d_metrics}
-      return (loss, metrics)
+    # if self.mode == "generate" and self.decoder.supports_generate():
+    #   # TODO: support generate
+    #   # Generate example text.
+    #   logging.info("lang_model: text inference.")
+    #   gen_tokens = self.generate(inputs, task_config.sequence_length)
+    #
+    #   # Return generated text, along with vizualizations and histograms.
+    #   metrics = {"gen_tokens": gen_tokens, **d_metrics}
+    #   return (loss, metrics)
 
     # Just return metrics related to the loss.
     metrics = {

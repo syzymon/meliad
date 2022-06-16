@@ -1,6 +1,7 @@
 # Tiny config for testing purposes.
 
-NUM_LAYERS = 2
+NUM_LAYERS = (2, 2)
+SHORTEN_FACTORS = (2,)
 EMBED_DIM = 128
 NUM_HEADS = 4
 HEAD_DIM = 32
@@ -13,7 +14,6 @@ decoder_stack.TransformerTaskConfig:
   batch_size = 1
 
 transformer_layer.TransformerLayer:
-  window_length = 256
   use_long_xl_architecture = False
 
 training_loop.Trainer:

@@ -71,10 +71,11 @@ transformer_ffn/nn_components.MLP:
 decoder_stack.DecoderStack:
   # task_config will be passed in from DecoderOnlyLanguageModel.
   num_layers = %NUM_LAYERS
+  shorten_factors = %SHORTEN_FACTORS
   embedding_size = %EMBED_DIM
   embedding_stddev = 1.0
   layer_factory = @transformer_layer.TransformerLayer
-  dstack_window_length = 0
+  dstack_window_length = 256
   use_absolute_positions = False
   use_final_layernorm = True          # Final layernorm before token lookup.
   final_dropout_rate = %DROPOUT_RATE  # Dropout before token lookup.

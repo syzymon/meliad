@@ -15,7 +15,7 @@
 """Hierarchical transformer."""
 
 import functools
-from typing import Any, Callable, Optional, Sequence, Tuple
+from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
 from absl import logging
 
@@ -53,6 +53,19 @@ DStackDecoderState = Tuple[transformer_layer.DecoderState, ...]
 DStackWindowState = Tuple[transformer_layer.WindowState, ...]
 
 
+def shift_right(x, by=1, axis=1):
+  """Shift the input to the right by padding on axis 1."""
+  pad_widths = [(0, 0)] * len(x.shape)
+  pad_widths[axis] = (by, 0)
+  padded = jnp.pad(x, pad_widths, mode="constant", constant_values=x.dtype.type(0))
+  return padded[:, :-by]
+
+
+def upsample_by_repeat(x, shorten_factor):
+  assert len(x.shape) == 3
+  return jnp.repeat(x, shorten_factor, axis=1)
+
+
 @gin.configurable
 class DecoderStack(nn.Module):
   """Stack of transformer decoder layers."""
@@ -61,7 +74,8 @@ class DecoderStack(nn.Module):
   task_config: TransformerTaskConfig = gin.REQUIRED
 
   # Configurable hyperparameters.
-  num_layers: int = gin.REQUIRED
+  num_layers: Union[int, tuple] = gin.REQUIRED
+  shorten_factors: tuple = gin.REQUIRED
   embedding_size: int = gin.REQUIRED
   embedding_stddev: float = 1.0
 
@@ -136,35 +150,69 @@ class DecoderStack(nn.Module):
                          self.recurrent_layer_indices and
                          self.dstack_window_length > 0)
 
-    layers = []
-    for i in range(0, self.num_layers):
-      mem = memory if (i in mem_layer_indices) else None
-      rec_i = i in recurrent_layer_indices
-      layer_fn = functools.partial(
-          self.layer_factory,
-          mode=self.mode,
-          batch_size=self.task_config.batch_size,
-          embedding_size=self.embedding_size,
-          name=f"transformer{i}",
-          recurrent_attention=rec_i,
-          cross_attention=enable_cross_attn and not rec_i)
-      if mem:
-        logging.info("Using external memory with transformer layer %d.", i)
-        layer_fn = functools.partial(
-            layer_fn,
-            memory=mem,
-            # We use partial function applications here only to avoid
-            # overwriting the head size unless memory is involved.
-            head_size=mem.key_size,
-            num_heads=mem.num_heads)
-      layers.append(layer_fn())
-    self.transformer_layers = layers
+    assert len(self.num_layers) == 2
+    n_vanilla_layers, n_shortened_layers = self.num_layers
+
+
+    self.pre_vanilla_layers = self.create_transformer_blocks(n_vanilla_layers,
+                                                             enable_cross_attn,
+                                                             mem_layer_indices,
+                                                             memory,
+                                                             recurrent_layer_indices,
+                                                             layer_name_pref="pre_vanilla")
+    # TODO: shortening
+    (shorten_factor,) = self.shorten_factors
+    self.shortened_layers = self.create_transformer_blocks(n_shortened_layers,
+                                                           enable_cross_attn,
+                                                           mem_layer_indices,
+                                                           memory,
+                                                           recurrent_layer_indices,
+                                                           layer_name_pref="shortened",
+                                                           total_kv_pooling=shorten_factor)
+
+    # TODO: upsampling
+    self.post_vanilla_layers = self.create_transformer_blocks(n_vanilla_layers, enable_cross_attn,
+                                   mem_layer_indices, memory,
+                                   recurrent_layer_indices,
+                                   layer_name_pref="post_vanilla")
+
+    # self.transformer_layers = layers
 
     if self.use_final_layernorm:
       self.final_layernorm = nn_components.LayerNorm()
 
     if self.final_mlp_factory is not None:
       self.final_mlp = self.final_mlp_factory(self.embedding_size)
+
+  def create_transformer_blocks(self, n_layers, enable_cross_attn,
+                                mem_layer_indices, memory,
+                                recurrent_layer_indices, layer_name_pref="",
+                                total_kv_pooling=1):
+      layers = []
+      for i in range(n_layers):
+          mem = memory if (i in mem_layer_indices) else None
+          rec_i = i in recurrent_layer_indices
+          layer_fn = functools.partial(
+              self.layer_factory,
+              mode=self.mode,
+              batch_size=self.task_config.batch_size,
+              embedding_size=self.embedding_size,
+              name=f"{layer_name_pref}_{i}",
+              recurrent_attention=rec_i,
+              cross_attention=enable_cross_attn and not rec_i,
+              window_length=self.dstack_window_length // total_kv_pooling)
+          if mem:
+              logging.info("Using external memory with transformer layer %d.",
+                           i)
+              layer_fn = functools.partial(
+                  layer_fn,
+                  memory=mem,
+                  # We use partial function applications here only to avoid
+                  # overwriting the head size unless memory is involved.
+                  head_size=mem.key_size,
+                  num_heads=mem.num_heads)
+          layers.append(layer_fn())
+      return layers
 
   def init_decoder_state(self, sequence_length: int,
                          start_of_sequence: Array) -> DStackDecoderState:
@@ -178,12 +226,12 @@ class DecoderStack(nn.Module):
     """Load cached state that is passed from one window to the next."""
     return tuple([
         layer.load_window_state(start_of_sequence)
-        for layer in self.transformer_layers
+        for layer in self.pre_vanilla_layers
     ])
 
   def store_window_state(self, window_state: DStackWindowState):
     """Write window state to the cache."""
-    for (layer, wstate) in zip(self.transformer_layers, window_state):
+    for (layer, wstate) in zip(self.pre_vanilla_layers, window_state):
       layer.store_window_state(wstate)
 
   def _eval_layer_stack(self, xs: Array, start_of_sequence: Array,
@@ -206,6 +254,7 @@ class DecoderStack(nn.Module):
                          self.recurrent_layer_indices and
                          self.dstack_window_length > 0)
     if enable_cross_attn and window_state is not None:
+      assert False
       # TODO(delesley): fix this so it works with the autoregressive decoder.
       assert decoder_state is None
       logging.info("dstack: using recurrent cross attention on all layers.")
@@ -215,7 +264,53 @@ class DecoderStack(nn.Module):
           recurrent_kv = rkv
 
     # Apply transformer layers.
-    for (i, layer) in enumerate(self.transformer_layers):
+    ys = self.apply_transformer_layers(self.pre_vanilla_layers, attn_viz_dicts,
+                                       decoder_state,
+                                       importance, next_decoder_states,
+                                       next_window_states, recurrent_kv,
+                                       start_of_sequence, window_state, ys)
+
+    (shorten_factor,) = self.shorten_factors
+    # ys: shape (bld)
+    shifted_ys = shift_right(ys, by=shorten_factor, axis=1)
+    shortened_ys = nn.avg_pool(
+      shifted_ys,
+      window_shape=(shorten_factor,),
+      strides=(shorten_factor,),
+    )
+
+    shortened_ys = self.apply_transformer_layers(self.shortened_layers,
+                                                 attn_viz_dicts,
+                                                 decoder_state,
+                                                 importance, next_decoder_states,
+                                                 next_window_states, recurrent_kv,
+                                                 start_of_sequence, window_state, shortened_ys)
+
+    upsampled_ys = upsample_by_repeat(shortened_ys,
+                                      shorten_factor=shorten_factor)
+
+    # If we don't have shortened, don't do shortening
+    if self.num_layers[1] > 0:
+      ys = ys + upsampled_ys
+
+    ys = self.apply_transformer_layers(self.post_vanilla_layers,
+                                       attn_viz_dicts,
+                                       decoder_state,
+                                       importance, next_decoder_states,
+                                       next_window_states, recurrent_kv,
+                                       start_of_sequence, window_state, ys)
+
+
+    window_state = tuple(next_window_states)
+    decoder_state = tuple(next_decoder_states)
+    return (ys, window_state, decoder_state, attn_viz_dicts)
+
+  def apply_transformer_layers(self, layer_stack,
+                               attn_viz_dicts, decoder_state, importance,
+                               next_decoder_states, next_window_states,
+                               recurrent_kv, start_of_sequence, window_state,
+                               ys):
+    for (i, layer) in enumerate(layer_stack):
       if layer.recurrent_attention:
         cross_kv = None  # The recurrent layer handles rkv internally.
       else:
@@ -225,18 +320,15 @@ class DecoderStack(nn.Module):
       wstate_i = None if window_state is None else window_state[i]
       dstate_i = None if decoder_state is None else decoder_state[i]
       (ys, importance, n_wstate_i, n_dstate_i, viz_dict) = layer(
-          ys, start_of_sequence,
-          importance=importance,
-          cross_attention_kv=cross_kv,   # cross-attend to recurrent_kv.
-          window_state=wstate_i,
-          decoder_state=dstate_i)
+        ys, start_of_sequence,
+        importance=importance,
+        cross_attention_kv=cross_kv,  # cross-attend to recurrent_kv.
+        window_state=wstate_i,
+        decoder_state=dstate_i)
       next_window_states.append(n_wstate_i)
       next_decoder_states.append(n_dstate_i)
       attn_viz_dicts.append(viz_dict)
-
-    window_state = tuple(next_window_states)
-    decoder_state = tuple(next_decoder_states)
-    return (ys, window_state, decoder_state, attn_viz_dicts)
+    return ys
 
   def __call__(self,
                input_tokens: Array,
