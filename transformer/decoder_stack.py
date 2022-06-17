@@ -160,6 +160,8 @@ class DecoderStack(nn.Module):
                                                              memory,
                                                              recurrent_layer_indices,
                                                              layer_name_pref="pre_vanilla")
+    self.pre_vanilla_layernorm = nn_components.LayerNorm()
+
     # TODO: shortening
     (shorten_factor,) = self.shorten_factors
     self.shortened_layers = self.create_transformer_blocks(n_shortened_layers,
@@ -169,6 +171,7 @@ class DecoderStack(nn.Module):
                                                            recurrent_layer_indices,
                                                            layer_name_pref="shortened",
                                                            total_kv_pooling=shorten_factor)
+    self.shortened_layernorm = nn_components.LayerNorm()
 
     # TODO: upsampling
     self.post_vanilla_layers = self.create_transformer_blocks(n_vanilla_layers, enable_cross_attn,
@@ -269,6 +272,7 @@ class DecoderStack(nn.Module):
                                        importance, next_decoder_states,
                                        next_window_states, recurrent_kv,
                                        start_of_sequence, window_state, ys)
+    ys = self.pre_vanilla_layernorm(ys)
 
     (shorten_factor,) = self.shorten_factors
     # ys: shape (bld)
@@ -285,7 +289,7 @@ class DecoderStack(nn.Module):
                                                  importance, next_decoder_states,
                                                  next_window_states, recurrent_kv,
                                                  start_of_sequence, window_state, shortened_ys)
-
+    shortened_ys = self.shortened_layernorm(shortened_ys)
     upsampled_ys = upsample_by_repeat(shortened_ys,
                                       shorten_factor=shorten_factor)
 
@@ -317,16 +321,19 @@ class DecoderStack(nn.Module):
         cross_kv = recurrent_kv  # Other layers cross-attend to recurrent one.
 
       logging.info("dstack: ---- Layer %d ----", i)
-      wstate_i = None if window_state is None else window_state[i]
-      dstate_i = None if decoder_state is None else decoder_state[i]
+      # wstate_i = None if window_state is None else window_state[i]
+      # dstate_i = None if decoder_state is None else decoder_state[i]
       (ys, importance, n_wstate_i, n_dstate_i, viz_dict) = layer(
         ys, start_of_sequence,
         importance=importance,
         cross_attention_kv=cross_kv,  # cross-attend to recurrent_kv.
-        window_state=wstate_i,
-        decoder_state=dstate_i)
-      next_window_states.append(n_wstate_i)
-      next_decoder_states.append(n_dstate_i)
+        # window_state=wstate_i,
+        # decoder_state=dstate_i,
+        window_state = None,
+        decoder_state = None
+      )
+      # next_window_states.append(n_wstate_i)
+      # next_decoder_states.append(n_dstate_i)
       attn_viz_dicts.append(viz_dict)
     return ys
 

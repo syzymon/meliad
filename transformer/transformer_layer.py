@@ -427,7 +427,8 @@ class TransformerLayer(nn.Module):
       # When training, attention is done using windows or chunks, and prior
       # context (e.g. keys,values from the previous window) is stored in the
       # window_state object.
-      (prev_kvi, recurrent_state) = window_state  # pytype: disable=attribute-error
+      # (prev_kvi, recurrent_state) = window_state  # pytype: disable=attribute-error
+      prev_kvi, recurrent_state = None, None
 
       # Get the size of the sliding window for pos bias, dropout, & causal mask.
       (num_queries, num_keys) = attention.sliding_attention_window_shape(
