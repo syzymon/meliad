@@ -9,5 +9,3 @@ sentencepiece>=0.1.96
 seqio>=0.0.7
 tensorflow>=2.9.1
 tensorflow-datasets>=4.5.2
-cloudpickle==2.0.0
-neptune-client>=0.14.3
