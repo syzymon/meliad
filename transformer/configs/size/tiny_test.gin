@@ -1,6 +1,6 @@
 # Tiny config for testing purposes.
 
-NUM_LAYERS = (1, 2)
+NUM_LAYERS = (1, 0)
 SHORTEN_FACTORS = (2,)
 EMBED_DIM = 128
 NUM_HEADS = 4
@@ -20,7 +20,7 @@ training_loop.Trainer:
   num_steps = 2000
   warmup_steps = 200
   log_every_steps = 100
-  test_every_steps = 998
+  test_every_steps = 100
   num_test_steps = 200
   generate_every_steps = 10000
   print_input_every_steps = 100

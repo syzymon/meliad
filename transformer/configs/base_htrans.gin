@@ -95,3 +95,7 @@ nn_components.LayerNorm:
   use_mean = False   # Calculate and adjust for the mean as well as the scale.
   dtype = %DTYPE
 
+#include "size/tiny_test.gin"
+include "tasks/pg19_tokens.gin"
+include "size/small_test_no_mem.gin"
+#include "size/small_test_hourglass.gin"

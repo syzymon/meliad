@@ -34,6 +34,7 @@ def _parse_args():
         "is a path to a pickled experiment config created by the mrunner CLI or"
         "a mrunner specification file.",
     )
+    parser.add_argument("--gin_file", action="append", default=[], help="Gin config files.")
     return parser.parse_args()
 
 

@@ -53,7 +53,8 @@ def parse_gin_configuration():
   if FLAGS.gin_param:
     for gin_param in FLAGS.gin_param:
       logging.info("Overriding Gin param %s", gin_param)
-  gin.parse_config_files_and_bindings(FLAGS.gin_file, FLAGS.gin_param)
+  with gin.unlock_config():
+    gin.parse_config_files_and_bindings(FLAGS.gin_file, FLAGS.gin_param)
 
 
 def run_training_loop(testing: bool = False):

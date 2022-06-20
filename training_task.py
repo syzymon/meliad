@@ -22,6 +22,8 @@ from clu import metric_writers
 from flax import optim
 from flax import struct
 import jax
+
+import metric_logging
 import  metrics_summary
 import numpy as np
 
@@ -181,6 +183,17 @@ class TrainingTask:
 
     # Write and clear summary data.
     logging.info("Writing summaries for mode %s.", self.mode)
+    for metric_key, metric_agg in self.summary.metric_dict.items():
+      if metric_key == 'perplexity':
+        continue
+      metric_aggregation_type = self.summary.metric_types[metric_key]
+      if metric_aggregation_type == 'last':
+        metric_aggregation_type = 'last_value'
+      metric_val = getattr(metric_agg, metric_aggregation_type)
+      if isinstance(metric_val, np.ndarray):
+        continue
+      metric_logging.log_scalar(f"{self.mode}/" + metric_key, step, metric_val)
+
     self.summary.write(self.summary_writer, step, prefix=self.summary_prefix)
 
     # Add extra summaries that are not computed by the step function.

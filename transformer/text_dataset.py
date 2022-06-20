@@ -16,12 +16,15 @@
 
 import os
 import re
-from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Sequence, \
+  Set, Tuple, Union, List
 
 from absl import flags
 from absl import logging
 import gin
 import jax
+
+import metric_logging
 from transformer import synthetic_text_data
 import numpy as np
 import seqio
@@ -353,7 +356,7 @@ def split_article(tokens: np.ndarray, sequence_length: int, split: str,
 
 
 def nonzero_tokens(tokens: np.ndarray,
-                   loss_mask: Optional[np.ndarray]) -> list[int]:
+                   loss_mask: Optional[np.ndarray]) -> List[int]:
   """Removes tokens that are not predicted by the model."""
   # TODO(delesley): Fix the model so that it predicts the first token.
   # The language model doesn't predict the first token.

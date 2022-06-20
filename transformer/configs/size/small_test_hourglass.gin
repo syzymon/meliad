@@ -1,0 +1,30 @@
+NUM_LAYERS = (4, 4) #6 layers
+SHORTEN_FACTORS = (2,)
+EMBED_DIM = 512
+NUM_HEADS = 8
+HEAD_DIM = 128
+MLP_DIM = 2048
+DROPOUT_RATE = 0.1
+ATTN_DROPOUT_RATE = 0.1
+
+decoder_stack.TransformerTaskConfig:
+  sequence_length = 512
+  batch_size = 2
+
+transformer_layer.TransformerLayer:
+  use_long_xl_architecture = False
+
+decoder_stack.DecoderStack:
+  recurrent_layer_indices = ()  # (-1,)
+  feedback_recurrence = False
+
+training_loop.Trainer:
+  num_steps = 300_000
+  warmup_steps = 4_000
+  status_every_steps = 5
+  log_every_steps = 20
+  test_every_steps = 200
+  num_test_steps = 200
+  generate_every_steps = 1_000_000
+  print_input_every_steps = 100
+  checkpoint_every_steps = 300_000
