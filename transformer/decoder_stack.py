@@ -163,6 +163,7 @@ class DecoderStack(nn.Module):
     self.pre_vanilla_layernorm = nn_components.LayerNorm()
 
     # TODO: shortening
+    self.shortening_layernorm = nn_components.LayerNorm()
     (shorten_factor,) = self.shorten_factors
     self.shortened_layers = self.create_transformer_blocks(n_shortened_layers,
                                                            enable_cross_attn,
@@ -282,6 +283,7 @@ class DecoderStack(nn.Module):
       window_shape=(shorten_factor,),
       strides=(shorten_factor,),
     )
+    shortened_ys = self.shortening_layernorm(shortened_ys)
 
     shortened_ys = self.apply_transformer_layers(self.shortened_layers,
                                                  attn_viz_dicts,
