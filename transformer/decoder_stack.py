@@ -276,7 +276,7 @@ class DecoderStack(nn.Module):
 
     (shorten_factor,) = self.shorten_factors
     # ys: shape (bld)
-    shifted_ys = shift_right(ys, by=shorten_factor, axis=1)
+    shifted_ys = shift_right(ys, by=shorten_factor - 1, axis=1)
     shortened_ys = nn.avg_pool(
       shifted_ys,
       window_shape=(shorten_factor,),
